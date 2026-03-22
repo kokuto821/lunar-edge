@@ -81,6 +81,7 @@ def _calc_bollinger(df: pd.DataFrame) -> tuple[list[BollingerBandBar], Bollinger
     データ不足の場合は ([], None) を返す。
     """
     if len(df) < BB_PERIOD:
+        logger.warning("data too short for Bollinger Bands: %d rows (need %d)", len(df), BB_PERIOD)
         return [], None
 
     close = df["Close"]
@@ -184,7 +185,7 @@ def run_screening(codes: list[str]) -> ScreeningResult:
             continue
 
         hist = _fetch_history(ticker, period="1y")
-        if hist.empty or len(hist) < BB_PERIOD:
+        if hist.empty:
             continue
 
         # 直近6ヶ月のみカードプレビューに使う
