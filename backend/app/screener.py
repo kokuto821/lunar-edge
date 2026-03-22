@@ -171,71 +171,70 @@ def _passes_screening(info: dict, price: float, bb: BollingerBands) -> bool:
     return True
 
 
+def _screen_single_stock(code: str) -> StockCard | None:
+    """1銘柄分のデータ取得・スクリーニング判定を行い、条件を満たせば StockCard を返す。"""
+    time.sleep(REQUEST_INTERVAL)
+    ticker = yf.Ticker(code)
+
+    info = _fetch_info(ticker)
+    if not info:
+        return None
+
+    hist = _fetch_history(ticker, period="1y")
+    if hist.empty:
+        return None
+
+    _, bb_summary = _calc_bollinger(hist)
+    if bb_summary is None:
+        return None
+
+    price = float(hist["Close"].iloc[-1])
+    prev_close = float(hist["Close"].iloc[-2]) if len(hist) >= 2 else price
+    price_change_pct = round((price - prev_close) / prev_close * 100, 2)
+
+    if not _passes_screening(info, price, bb_summary):
+        return None
+
+    def _f(key: str) -> float | None:
+        v = info.get(key)
+        return float(v) if v is not None else None
+
+    roe = _f("returnOnEquity")
+    op_margin = _f("operatingMargins")
+    de = _f("debtToEquity")
+    equity_ratio = None
+    if de is not None:
+        de_norm = de / 100 if de > 10 else de
+        equity_ratio = round(1.0 / (1.0 + de_norm) * 100, 1)
+
+    fundamentals = Fundamentals(
+        pbr=_f("priceToBook"),
+        per=_f("trailingPE") or _f("forwardPE"),
+        roe=round(roe * 100, 1) if roe is not None else None,
+        operating_margin=round(op_margin * 100, 1) if op_margin is not None else None,
+        equity_ratio=equity_ratio,
+    )
+
+    hist_6m = hist.iloc[-126:] if len(hist) >= 126 else hist
+    chart_preview = _build_ohlc_bars(hist_6m)
+
+    logger.info("matched: %s", code)
+    return StockCard(
+        code=code,
+        name=info.get("longName") or info.get("shortName") or code,
+        price=round(price, 2),
+        price_change_pct=price_change_pct,
+        fundamentals=fundamentals,
+        bollinger=bb_summary,
+        chart_preview=chart_preview,
+    )
+
+
 def run_screening(codes: list[str]) -> ScreeningResult:
     """
     指定した銘柄コードリストに対してスクリーニングを実行し結果を返す。
     """
-    matched: list[StockCard] = []
-
-    for code in codes:
-        time.sleep(REQUEST_INTERVAL)
-        ticker = yf.Ticker(code)
-        info = _fetch_info(ticker)
-        if not info:
-            continue
-
-        hist = _fetch_history(ticker, period="1y")
-        if hist.empty:
-            continue
-
-        # 直近6ヶ月のみカードプレビューに使う
-        hist_6m = hist.iloc[-126:] if len(hist) >= 126 else hist
-
-        _, bb_summary = _calc_bollinger(hist)
-        if bb_summary is None:
-            continue
-
-        price = float(hist["Close"].iloc[-1])
-        prev_close = float(hist["Close"].iloc[-2]) if len(hist) >= 2 else price
-        price_change_pct = round((price - prev_close) / prev_close * 100, 2)
-
-        if not _passes_screening(info, price, bb_summary):
-            continue
-
-        def _f(key: str) -> float | None:
-            v = info.get(key)
-            return float(v) if v is not None else None
-
-        roe = _f("returnOnEquity")
-        op_margin = _f("operatingMargins")
-        de = _f("debtToEquity")
-        equity_ratio = None
-        if de is not None:
-            de_norm = de / 100 if de > 10 else de
-            equity_ratio = round(1.0 / (1.0 + de_norm) * 100, 1)
-
-        fundamentals = Fundamentals(
-            pbr=_f("priceToBook"),
-            per=_f("trailingPE") or _f("forwardPE"),
-            roe=round(roe * 100, 1) if roe is not None else None,
-            operating_margin=round(op_margin * 100, 1) if op_margin is not None else None,
-            equity_ratio=equity_ratio,
-        )
-
-        _, bb_bars_full = _calc_bollinger(hist)  # 時系列は別途 /chart で返す
-        chart_preview = _build_ohlc_bars(hist_6m)
-
-        matched.append(StockCard(
-            code=code,
-            name=info.get("longName") or info.get("shortName") or code,
-            price=round(price, 2),
-            price_change_pct=price_change_pct,
-            fundamentals=fundamentals,
-            bollinger=bb_summary,
-            chart_preview=chart_preview,
-        ))
-
-        logger.info("matched: %s", code)
+    matched = [card for code in codes if (card := _screen_single_stock(code)) is not None]
 
     screened_at = datetime.datetime.now(JST).isoformat()
     return ScreeningResult(
