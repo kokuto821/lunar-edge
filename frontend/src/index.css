@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Moon Traders カラーパレット */
+:root {
+  --background: #2f2f6f;
+  --card: #4f5b7d;
+  --border: #7890a5;
+  --foreground: #afc3cf;
+  --primary: #f2e5c4;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-foreground;
+  }
+}
