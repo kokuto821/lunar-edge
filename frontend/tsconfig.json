@@ -14,6 +14,9 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
+    /* テストランナーのグローバル型 */
+    "types": ["vitest/globals", "@testing-library/jest-dom"],
+
     /* strictモード */
     "strict": true,
     "noUnusedLocals": true,
