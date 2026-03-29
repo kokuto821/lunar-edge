@@ -1,0 +1,17 @@
+# 依存関係
+node_modules/
+
+# ロックファイル（ルート）
+package-lock.json
+
+# 環境変数
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ログ
+*.log
