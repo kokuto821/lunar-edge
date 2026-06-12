@@ -11,6 +11,12 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  server: {
+    // /api/* へのリクエストをバックエンド (FastAPI) に転送する
+    proxy: {
+      '/api': 'http://localhost:8000',
+    },
+  },
   test: {
     globals: true,
     environment: 'happy-dom',
