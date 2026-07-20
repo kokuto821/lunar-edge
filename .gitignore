@@ -1,6 +1,11 @@
 # 依存関係
 node_modules/
 
+# Python
+.venv/
+__pycache__/
+*.pyc
+
 # ロックファイル（ルート）
 package-lock.json
 
