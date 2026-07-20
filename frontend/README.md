@@ -41,6 +41,21 @@ npm run dev
 - `npm run test` — Vitest (watch)
 - `npm run test:run` — Vitest (1回実行)
 
+## テスト
+
+Vitest + Testing Library。テストは各コンポーネント隣接の `__tests__/` に配置。
+
+```bash
+npm run test        # watch モード (ファイル変更で再実行)
+npm run test:run    # 1回実行 (CI 向け)
+```
+
+特定ファイルのみ:
+
+```bash
+npm run test:run -- ScreeningGrid
+```
+
 ## パスエイリアス
 
 `@/` → `src/` (`vite.config.ts` / `tsconfig.json`)

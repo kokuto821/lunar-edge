@@ -39,4 +39,16 @@ npm run dev
 - フロント: React, TypeScript, Tailwind CSS, shadcn/ui, Jotai, lightweight-charts
 - バックエンド: FastAPI, yfinance, pandas, pandas-ta
 
+## テスト
+
+フロントは Vitest。`frontend/` で:
+
+```bash
+npm run test:run
+```
+
+詳細は [frontend/README.md](frontend/README.md#テスト)。バックエンドは現状テスト未整備。
+
+## その他
+
 詳細な手順・スクリプト・API 仕様は各ディレクトリの README 参照。
