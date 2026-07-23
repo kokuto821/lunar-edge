@@ -14,7 +14,6 @@ import logging
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-import pandas_ta as ta
 import yfinance as yf
 
 from app.schemas import (
@@ -79,38 +78,32 @@ def _calc_bollinger(df: pd.DataFrame) -> tuple[list[BollingerBandBar], Bollinger
     """
     ボリンジャーバンドを計算し (時系列リスト, 直近値) を返す。
     データ不足の場合は ([], None) を返す。
+
+    pandas_ta の列名・std パラメータは版依存で不安定なため、pandas の rolling で
+    直接計算する（ddof=1 の標本標準偏差で従来の pandas_ta 出力と一致）。
     """
     if len(df) < BB_PERIOD:
         logger.warning("data too short for Bollinger Bands: %d rows (need %d)", len(df), BB_PERIOD)
         return [], None
 
     close = df["Close"]
-    bb = ta.bbands(close, length=BB_PERIOD, std=BB_STD)
-    if bb is None or bb.empty:
-        return [], None
-
-    # pandas_ta の列名: BBL_25_2.0 / BBM_25_2.0 / BBU_25_2.0
-    # +1σ / -1σ は std=1 で再計算
-    bb1 = ta.bbands(close, length=BB_PERIOD, std=1.0)
-
-    col_l2 = f"BBL_{BB_PERIOD}_{BB_STD}"
-    col_m  = f"BBM_{BB_PERIOD}_{BB_STD}"
-    col_u2 = f"BBU_{BB_PERIOD}_{BB_STD}"
-    col_l1 = f"BBL_{BB_PERIOD}_1.0"
-    col_u1 = f"BBU_{BB_PERIOD}_1.0"
+    middle = close.rolling(BB_PERIOD).mean()
+    std = close.rolling(BB_PERIOD).std(ddof=1)
 
     bars: list[BollingerBandBar] = []
     for i, idx in enumerate(df.index):
-        if pd.isna(bb[col_m].iloc[i]):
+        m = middle.iloc[i]
+        s = std.iloc[i]
+        if pd.isna(m) or pd.isna(s):
             continue
         date_str = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)[:10]
         bars.append(BollingerBandBar(
             time=date_str,
-            middle=round(float(bb[col_m].iloc[i]), 2),
-            upper1=round(float(bb1[col_u1].iloc[i]), 2) if bb1 is not None else 0.0,
-            upper2=round(float(bb[col_u2].iloc[i]), 2),
-            lower1=round(float(bb1[col_l1].iloc[i]), 2) if bb1 is not None else 0.0,
-            lower2=round(float(bb[col_l2].iloc[i]), 2),
+            middle=round(float(m), 2),
+            upper1=round(float(m + 1.0 * s), 2),
+            upper2=round(float(m + BB_STD * s), 2),
+            lower1=round(float(m - 1.0 * s), 2),
+            lower2=round(float(m - BB_STD * s), 2),
         ))
 
     if not bars:
@@ -234,7 +227,15 @@ def run_screening(codes: list[str]) -> ScreeningResult:
     """
     指定した銘柄コードリストに対してスクリーニングを実行し結果を返す。
     """
-    matched = [card for code in codes if (card := _screen_single_stock(code)) is not None]
+    matched: list[StockCard] = []
+    for code in codes:
+        try:
+            card = _screen_single_stock(code)
+        except Exception as e:
+            logger.warning("screening failed for %s: %s", code, e)
+            continue
+        if card is not None:
+            matched.append(card)
 
     screened_at = datetime.datetime.now(JST).isoformat()
     return ScreeningResult(
